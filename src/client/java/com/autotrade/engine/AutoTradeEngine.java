@@ -20,6 +20,7 @@ public final class AutoTradeEngine {
     private static int lastSyncedTradeIndex = -1;
     private static int lastSyncId = -1;
     private static long lastSelectionTick = Long.MIN_VALUE;
+    private static long lastAutofillTick = Long.MIN_VALUE;
     private static boolean awaitingSelectionSettle;
     private static String lastObservedOutputSignature = "";
     private static int stableOutputSamples;
@@ -57,6 +58,7 @@ public final class AutoTradeEngine {
             lastSyncId = handler.syncId;
             lastSyncedTradeIndex = -1;
             lastSelectionTick = Long.MIN_VALUE;
+            lastAutofillTick = Long.MIN_VALUE;
             awaitingSelectionSettle = false;
             stableOutputSamples = 0;
             lastObservedOutputSignature = "";
@@ -74,8 +76,8 @@ public final class AutoTradeEngine {
             return;
         }
 
-        // Keep trade selection server-authoritative; don't mutate local handler state.
-        if (lastSyncedTradeIndex != targetIndex || now - lastSelectionTick >= 30) {
+        // Sync target selection with server on target change and occasional keep-alive.
+        if (lastSyncedTradeIndex != targetIndex || now - lastSelectionTick >= 80) {
             syncTargetTrade(client, handler, targetIndex, now);
             STATE.setStatusText("Auto: Selecting trade #" + (targetIndex + 1));
             return;
@@ -90,9 +92,12 @@ public final class AutoTradeEngine {
         Slot output = handler.getSlot(2);
         ItemStack before = output.getStack().copy();
         if (before.isEmpty()) {
-            // Periodic reselect re-triggers server-side autofill without client ghosting.
-            if (now - lastSelectionTick >= 10) {
-                syncTargetTrade(client, handler, targetIndex, now);
+            // Retry local autofill periodically so no manual click is needed.
+            if (now - lastAutofillTick >= 20) {
+                handler.switchTo(targetIndex);
+                lastAutofillTick = now;
+                awaitingSelectionSettle = true;
+                lastSelectionTick = now;
             }
             STATE.setStatusText("Auto: Waiting (no result)");
             return;
@@ -206,9 +211,11 @@ public final class AutoTradeEngine {
     }
 
     private static void syncTargetTrade(MinecraftClient client, MerchantScreenHandler handler, int targetIndex, long now) {
+        handler.switchTo(targetIndex);
         client.interactionManager.clickButton(handler.syncId, targetIndex);
         lastSyncedTradeIndex = targetIndex;
         lastSelectionTick = now;
+        lastAutofillTick = now;
         awaitingSelectionSettle = true;
         stableOutputSamples = 0;
         lastObservedOutputSignature = "";
@@ -218,6 +225,7 @@ public final class AutoTradeEngine {
         lastSyncedTradeIndex = -1;
         lastSyncId = -1;
         lastSelectionTick = Long.MIN_VALUE;
+        lastAutofillTick = Long.MIN_VALUE;
         awaitingSelectionSettle = false;
         stableOutputSamples = 0;
         lastObservedOutputSignature = "";
