@@ -2,6 +2,7 @@ package com.autotrade.engine;
 
 import com.autotrade.config.AutoTradeConfig;
 import com.autotrade.config.ConfigManager;
+import com.autotrade.mixin.MerchantScreenAccessor;
 import com.autotrade.state.AutoTradeState;
 import com.autotrade.state.TradeContextTracker;
 import net.minecraft.client.MinecraftClient;
@@ -78,7 +79,7 @@ public final class AutoTradeEngine {
 
         // Sync target selection with server on target change and occasional keep-alive.
         if (lastSyncedTradeIndex != targetIndex || now - lastSelectionTick >= 80) {
-            syncTargetTrade(client, handler, targetIndex, now);
+            syncTargetTrade(screen, targetIndex, now);
             STATE.setStatusText("Auto: Selecting trade #" + (targetIndex + 1));
             return;
         }
@@ -94,10 +95,7 @@ public final class AutoTradeEngine {
         if (before.isEmpty()) {
             // Retry local autofill periodically so no manual click is needed.
             if (now - lastAutofillTick >= 20) {
-                handler.switchTo(targetIndex);
-                lastAutofillTick = now;
-                awaitingSelectionSettle = true;
-                lastSelectionTick = now;
+                emulateTradeClick(screen, targetIndex, now);
             }
             STATE.setStatusText("Auto: Waiting (no result)");
             return;
@@ -210,10 +208,20 @@ public final class AutoTradeEngine {
         return Math.max(1, oneBased) - 1;
     }
 
-    private static void syncTargetTrade(MinecraftClient client, MerchantScreenHandler handler, int targetIndex, long now) {
-        handler.switchTo(targetIndex);
-        client.interactionManager.clickButton(handler.syncId, targetIndex);
+    private static void syncTargetTrade(MerchantScreen screen, int targetIndex, long now) {
+        emulateTradeClick(screen, targetIndex, now);
         lastSyncedTradeIndex = targetIndex;
+        lastSelectionTick = now;
+        lastAutofillTick = now;
+        awaitingSelectionSettle = true;
+        stableOutputSamples = 0;
+        lastObservedOutputSignature = "";
+    }
+
+    private static void emulateTradeClick(MerchantScreen screen, int targetIndex, long now) {
+        MerchantScreenAccessor accessor = (MerchantScreenAccessor) (Object) screen;
+        accessor.autotrade$setSelectedIndex(targetIndex);
+        accessor.autotrade$invokeSyncRecipeIndex();
         lastSelectionTick = now;
         lastAutofillTick = now;
         awaitingSelectionSettle = true;
