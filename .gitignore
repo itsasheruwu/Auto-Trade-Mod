@@ -1,0 +1,19 @@
+# Gradle
+.gradle/
+build/
+out/
+
+# Fabric run dir
+run/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# OS
+.DS_Store
+
+# Logs
+*.log

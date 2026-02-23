@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "autotrade",
+  "version": "${version}",
+  "name": "Auto Trade Mod",
+  "description": "Automatically repeats a selected villager trade while the merchant screen is open.",
+  "authors": [
+    "starboyash"
+  ],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/autotrade/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.autotrade.AutoTradeClientMod"
+    ],
+    "modmenu": [
+      "com.autotrade.modmenu.ModMenuIntegration"
+    ]
+  },
+  "mixins": [
+    "autotrade.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.18.2",
+    "minecraft": "1.21.11",
+    "fabric-api": "*",
+    "cloth-config": ">=21.11.153",
+    "java": ">=21"
+  },
+  "suggests": {
+    "modmenu": "*"
+  }
+}
