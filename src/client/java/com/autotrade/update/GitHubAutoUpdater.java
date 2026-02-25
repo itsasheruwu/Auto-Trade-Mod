@@ -1,6 +1,5 @@
 package com.autotrade.update;
 
-import com.autotrade.AutoTradeClientMod;
 import com.autotrade.config.AutoTradeConfig;
 import com.autotrade.config.ConfigManager;
 import com.google.gson.JsonArray;
@@ -47,73 +46,106 @@ public final class GitHubAutoUpdater {
         return thread;
     });
 
-    private static boolean checkStarted;
-    private static int readyTicks;
+    private static final Object CHECK_LOCK = new Object();
+
+    private static volatile boolean checkStarted;
+    private static volatile String pendingClientMessage;
 
     private GitHubAutoUpdater() {
     }
 
-    public static void onClientTick(MinecraftClient client) {
-        if (checkStarted) {
-            return;
-        }
-        if (client.player == null || client.world == null) {
-            return;
-        }
-
-        readyTicks++;
-        if (readyTicks < 60) {
-            return;
-        }
-
-        checkStarted = true;
-        CompletableFuture.runAsync(() -> checkAndApplyUpdate(client), EXECUTOR);
+    public static void runBlockingPreLaunchCheck() {
+        startCheck(false);
     }
 
-    private static void checkAndApplyUpdate(MinecraftClient client) {
+    public static void runAsyncStartupCheck() {
+        startCheck(true);
+    }
+
+    public static void onClientTick(MinecraftClient client) {
+        if (pendingClientMessage == null || client.player == null) {
+            return;
+        }
+
+        String message = pendingClientMessage;
+        pendingClientMessage = null;
+        sendClientMessage(client, message);
+    }
+
+    private static void startCheck(boolean async) {
+        synchronized (CHECK_LOCK) {
+            if (checkStarted) {
+                return;
+            }
+            checkStarted = true;
+        }
+
+        Runnable check = () -> {
+            try {
+                Optional<String> resultMessage = checkAndApplyUpdate();
+                resultMessage.ifPresent(message -> {
+                    pendingClientMessage = message;
+                    LOGGER.info(message);
+                });
+            } catch (Exception exception) {
+                LOGGER.warn("Auto update startup check failed", exception);
+            }
+        };
+
+        if (async) {
+            CompletableFuture.runAsync(check, EXECUTOR);
+            return;
+        }
+
+        check.run();
+    }
+
+    private static Optional<String> checkAndApplyUpdate() {
         AutoTradeConfig config = ConfigManager.getConfig();
         if (!config.autoUpdateEnabled) {
-            return;
+            return Optional.empty();
         }
 
         String owner = config.autoUpdateGithubOwner == null ? "" : config.autoUpdateGithubOwner.trim();
         String repo = config.autoUpdateGithubRepo == null ? "" : config.autoUpdateGithubRepo.trim();
         if (owner.isEmpty() || repo.isEmpty()) {
-            return;
+            return Optional.empty();
         }
 
         Path currentJar = getCurrentJarPath();
         if (currentJar == null) {
             LOGGER.info("Auto update skipped: running outside a jar (development environment).");
-            return;
+            return Optional.empty();
         }
 
         String currentVersion = getCurrentVersion().orElse("0.0.0");
         Optional<ReleaseInfo> latestRelease = fetchLatestRelease(owner, repo);
         if (latestRelease.isEmpty()) {
-            return;
+            return Optional.empty();
         }
 
         ReleaseInfo release = latestRelease.get();
         if (!isVersionNewer(currentVersion, release.tagName())) {
-            return;
+            return Optional.empty();
         }
 
         Optional<AssetInfo> asset = pickJarAsset(release.assets());
         if (asset.isEmpty()) {
             LOGGER.warn("Auto update skipped: no jar asset found for release {}", release.tagName());
-            return;
+            return Optional.empty();
         }
 
         try {
             Path downloadedJar = downloadAsset(asset.get(), currentJar);
             boolean applied = swapJar(currentJar, downloadedJar);
             if (applied) {
-                sendClientMessage(client, "AutoTrade updated to " + release.tagName() + ". Restart Minecraft to load it.");
+                return Optional.of("AutoTrade updated to " + release.tagName() + ". Restart Minecraft to load updated code.");
             }
         } catch (Exception exception) {
             LOGGER.warn("Auto update failed", exception);
         }
+
+        return Optional.empty();
     }
 
     private static Optional<ReleaseInfo> fetchLatestRelease(String owner, String repo) {
@@ -227,7 +259,7 @@ public final class GitHubAutoUpdater {
 
     private static Optional<Path> getCodeSourcePath() {
         try {
-            CodeSource source = AutoTradeClientMod.class.getProtectionDomain().getCodeSource();
+            CodeSource source = GitHubAutoUpdater.class.getProtectionDomain().getCodeSource();
             if (source == null || source.getLocation() == null) {
                 return Optional.empty();
             }

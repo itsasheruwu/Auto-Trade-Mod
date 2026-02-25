@@ -55,6 +55,11 @@ public final class ConfigScreenFactory {
                 .setDefaultValue(true)
                 .setSaveConsumer(value -> config.showInScreenStatusText = value)
                 .build());
+        statusCategory.addEntry(entries.startBooleanToggle(Text.literal("Keep auto ON when trading UI closes"), config.keepEnabledAcrossScreens)
+                .setDefaultValue(false)
+                .setTooltip(Text.literal("If enabled, Auto stays armed between villager screen reopen."))
+                .setSaveConsumer(value -> config.keepEnabledAcrossScreens = value)
+                .build());
 
         ConfigCategory updateCategory = builder.getOrCreateCategory(Text.literal("Auto Update"));
         updateCategory.addEntry(entries.startBooleanToggle(Text.literal("Enable GitHub auto update"), config.autoUpdateEnabled)
@@ -69,7 +74,9 @@ public final class ConfigScreenFactory {
                 .setDefaultValue("Auto-Trade-Mod")
                 .setSaveConsumer(value -> config.autoUpdateGithubRepo = value.trim())
                 .build());
-        updateCategory.addEntry(entries.startTextDescription(Text.literal("Updater checks latest release and installs it for next launch."))
+        updateCategory.addEntry(entries.startTextDescription(Text.literal("Updater checks at startup/pre-launch and installs new jar automatically."))
+                .build());
+        updateCategory.addEntry(entries.startTextDescription(Text.literal("Minecraft still must relaunch to run new mod code."))
                 .build());
 
         ConfigCategory scopeCategory = builder.getOrCreateCategory(Text.literal("Stored Indexes"));

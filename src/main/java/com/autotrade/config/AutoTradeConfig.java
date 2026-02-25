@@ -11,6 +11,7 @@ public final class AutoTradeConfig {
     public RateMode rateMode = RateMode.MODERATE;
     public boolean showInScreenStatusText = true;
     public boolean pauseRetryOnUnavailable = true;
+    public boolean keepEnabledAcrossScreens = false;
     public boolean autoUpdateEnabled = true;
     public String autoUpdateGithubOwner = "itsasheruwu";
     public String autoUpdateGithubRepo = "Auto-Trade-Mod";

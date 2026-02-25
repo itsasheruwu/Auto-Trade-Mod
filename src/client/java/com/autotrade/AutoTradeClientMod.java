@@ -17,6 +17,7 @@ public final class AutoTradeClientMod implements ClientModInitializer {
     public void onInitializeClient() {
         ConfigManager.getConfig();
         AutoTradeEngine.initialize(TRADE_CONTEXT_TRACKER);
+        GitHubAutoUpdater.runAsyncStartupCheck();
 
         UseEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
             if (world.isClient() && entity instanceof VillagerEntity villager) {

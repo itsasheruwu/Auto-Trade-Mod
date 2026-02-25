@@ -23,6 +23,7 @@ public final class AutoTradeEngine {
     private static long lastSelectionTick = Long.MIN_VALUE;
     private static long lastAutofillTick = Long.MIN_VALUE;
     private static boolean awaitingSelectionSettle;
+    private static boolean wasInMerchantScreen;
     private static String lastObservedOutputSignature = "";
     private static int stableOutputSamples;
 
@@ -35,19 +36,30 @@ public final class AutoTradeEngine {
 
     public static void onClientTick(MinecraftClient client) {
         if (!STATE.isEnabled()) {
+            wasInMerchantScreen = client.currentScreen instanceof MerchantScreen;
             return;
         }
 
+        AutoTradeConfig config = ConfigManager.getConfig();
         if (!(client.currentScreen instanceof MerchantScreen screen)) {
-            stop("Auto: OFF");
+            if (wasInMerchantScreen) {
+                resetSelectionState();
+                if (!config.keepEnabledAcrossScreens) {
+                    stop("Auto: OFF");
+                    wasInMerchantScreen = false;
+                    return;
+                }
+                STATE.setStatusText("Auto: Armed");
+            }
+            wasInMerchantScreen = false;
             return;
         }
+        wasInMerchantScreen = true;
 
         if (client.player == null || client.interactionManager == null || client.world == null) {
             return;
         }
 
-        AutoTradeConfig config = ConfigManager.getConfig();
         long now = client.world.getTime();
         if (now - STATE.getLastAttemptTick() < config.rateMode.tickInterval()) {
             return;
@@ -78,13 +90,13 @@ public final class AutoTradeEngine {
         }
 
         // Sync target selection with server on target change and occasional keep-alive.
-        if (lastSyncedTradeIndex != targetIndex || now - lastSelectionTick >= 80) {
+        if (lastSyncedTradeIndex != targetIndex || now - lastSelectionTick >= selectionKeepAliveTicks(config)) {
             syncTargetTrade(screen, targetIndex, now);
             STATE.setStatusText("Auto: Selecting trade #" + (targetIndex + 1));
             return;
         }
 
-        if (awaitingSelectionSettle && now - lastSelectionTick < 3) {
+        if (awaitingSelectionSettle && now - lastSelectionTick < selectionSettleTicks(config)) {
             STATE.setStatusText("Auto: Waiting (sync)");
             return;
         }
@@ -94,7 +106,7 @@ public final class AutoTradeEngine {
         ItemStack before = output.getStack().copy();
         if (before.isEmpty()) {
             // Retry local autofill periodically so no manual click is needed.
-            if (now - lastAutofillTick >= 20) {
+            if (now - lastAutofillTick >= autofillRetryTicks(config)) {
                 emulateTradeClick(screen, targetIndex, now);
             }
             STATE.setStatusText("Auto: Waiting (no result)");
@@ -105,12 +117,10 @@ public final class AutoTradeEngine {
         if (!currentSignature.equals(lastObservedOutputSignature)) {
             lastObservedOutputSignature = currentSignature;
             stableOutputSamples = 1;
-            STATE.setStatusText("Auto: Waiting (settle)");
-            return;
+        } else {
+            stableOutputSamples++;
         }
-
-        stableOutputSamples++;
-        if (stableOutputSamples < 2) {
+        if (stableOutputSamples < stableOutputSamplesRequired(config)) {
             STATE.setStatusText("Auto: Waiting (settle)");
             return;
         }
@@ -142,6 +152,7 @@ public final class AutoTradeEngine {
 
     public static void stop(String message) {
         resetSelectionState();
+        wasInMerchantScreen = false;
         STATE.setEnabled(false);
         STATE.setStatusText(message);
     }
@@ -241,5 +252,37 @@ public final class AutoTradeEngine {
 
     private static String outputSignature(ItemStack stack) {
         return stack.getItem().toString() + ":" + stack.getCount();
+    }
+
+    private static int selectionSettleTicks(AutoTradeConfig config) {
+        return switch (config.rateMode) {
+            case FAST -> 1;
+            case MODERATE -> 3;
+            case CONSERVATIVE -> 5;
+        };
+    }
+
+    private static int stableOutputSamplesRequired(AutoTradeConfig config) {
+        return switch (config.rateMode) {
+            case FAST -> 1;
+            case MODERATE -> 2;
+            case CONSERVATIVE -> 3;
+        };
+    }
+
+    private static int autofillRetryTicks(AutoTradeConfig config) {
+        return switch (config.rateMode) {
+            case FAST -> 4;
+            case MODERATE -> 20;
+            case CONSERVATIVE -> 30;
+        };
+    }
+
+    private static int selectionKeepAliveTicks(AutoTradeConfig config) {
+        return switch (config.rateMode) {
+            case FAST -> 20;
+            case MODERATE -> 80;
+            case CONSERVATIVE -> 120;
+        };
     }
 }
