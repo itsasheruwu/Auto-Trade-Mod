@@ -74,7 +74,7 @@ public final class ConfigScreenFactory {
                 .setDefaultValue("Auto-Trade-Mod")
                 .setSaveConsumer(value -> config.autoUpdateGithubRepo = value.trim())
                 .build());
-        updateCategory.addEntry(entries.startTextDescription(Text.literal("Updater checks at startup/pre-launch and installs new jar automatically."))
+        updateCategory.addEntry(entries.startTextDescription(Text.literal("Updater checks at startup and installs new jar automatically."))
                 .build());
         updateCategory.addEntry(entries.startTextDescription(Text.literal("Minecraft still must relaunch to run new mod code."))
                 .build());

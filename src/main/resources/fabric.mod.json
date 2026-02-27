@@ -12,9 +12,6 @@
   "icon": "assets/autotrade/icon.png",
   "environment": "client",
   "entrypoints": {
-    "preLaunch": [
-      "com.autotrade.update.AutoTradePreLaunch"
-    ],
     "client": [
       "com.autotrade.AutoTradeClientMod"
     ],

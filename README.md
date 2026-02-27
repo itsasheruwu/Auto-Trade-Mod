@@ -18,7 +18,7 @@ Client-only Fabric mod that repeats a selected villager trade while the merchant
 - Auto loop pauses/retries when the result is unavailable or inventory is full.
 - Optional: keep Auto armed when the merchant screen closes and reopens.
 - GitHub auto-updater:
-  - Checks latest release from GitHub during pre-launch/startup.
+  - Checks latest release from GitHub during startup.
   - Downloads and swaps jar automatically.
   - Updated code still requires restarting the game process.
 

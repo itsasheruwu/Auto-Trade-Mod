@@ -54,10 +54,6 @@ public final class GitHubAutoUpdater {
     private GitHubAutoUpdater() {
     }
 
-    public static void runBlockingPreLaunchCheck() {
-        startCheck(false);
-    }
-
     public static void runAsyncStartupCheck() {
         startCheck(true);
     }
