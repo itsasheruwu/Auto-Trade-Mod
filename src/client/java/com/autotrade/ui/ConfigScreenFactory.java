@@ -60,6 +60,11 @@ public final class ConfigScreenFactory {
                 .setTooltip(Text.literal("If enabled, Auto stays armed between villager screen reopen."))
                 .setSaveConsumer(value -> config.keepEnabledAcrossScreens = value)
                 .build());
+        statusCategory.addEntry(entries.startBooleanToggle(Text.literal("Auto-close UI when out of input items"), config.autoCloseUiOnMissingInput)
+                .setDefaultValue(false)
+                .setTooltip(Text.literal("Only applies when Keep auto ON is enabled."))
+                .setSaveConsumer(value -> config.autoCloseUiOnMissingInput = value)
+                .build());
 
         ConfigCategory updateCategory = builder.getOrCreateCategory(Text.literal("Auto Update"));
         updateCategory.addEntry(entries.startBooleanToggle(Text.literal("Enable GitHub auto update"), config.autoUpdateEnabled)

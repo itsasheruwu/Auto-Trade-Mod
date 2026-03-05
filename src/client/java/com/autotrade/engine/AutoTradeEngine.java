@@ -24,6 +24,7 @@ public final class AutoTradeEngine {
     private static long lastAutofillTick = Long.MIN_VALUE;
     private static boolean awaitingSelectionSettle;
     private static boolean wasInMerchantScreen;
+    private static int missingInputStreak;
     private static String lastObservedOutputSignature = "";
     private static int stableOutputSamples;
 
@@ -105,6 +106,17 @@ public final class AutoTradeEngine {
         Slot output = handler.getSlot(2);
         ItemStack before = output.getStack().copy();
         if (before.isEmpty()) {
+            if (isMissingInputState(config, handler, offers, targetIndex)) {
+                missingInputStreak++;
+                if (missingInputStreak >= missingInputCloseAttempts(config)) {
+                    client.setScreen(null);
+                    STATE.setStatusText("Auto: Closed (out of items)");
+                    return;
+                }
+            } else {
+                missingInputStreak = 0;
+            }
+
             // Retry local autofill periodically so no manual click is needed.
             if (now - lastAutofillTick >= autofillRetryTicks(config)) {
                 emulateTradeClick(screen, targetIndex, now);
@@ -112,6 +124,8 @@ public final class AutoTradeEngine {
             STATE.setStatusText("Auto: Waiting (no result)");
             return;
         }
+
+        missingInputStreak = 0;
 
         String currentSignature = outputSignature(before);
         if (!currentSignature.equals(lastObservedOutputSignature)) {
@@ -246,8 +260,34 @@ public final class AutoTradeEngine {
         lastSelectionTick = Long.MIN_VALUE;
         lastAutofillTick = Long.MIN_VALUE;
         awaitingSelectionSettle = false;
+        missingInputStreak = 0;
         stableOutputSamples = 0;
         lastObservedOutputSignature = "";
+    }
+
+    private static boolean isMissingInputState(
+            AutoTradeConfig config,
+            MerchantScreenHandler handler,
+            TradeOfferList offers,
+            int targetIndex
+    ) {
+        if (!config.keepEnabledAcrossScreens || !config.autoCloseUiOnMissingInput) {
+            return false;
+        }
+
+        if (offers.get(targetIndex).isDisabled()) {
+            return false;
+        }
+
+        return handler.getSlot(0).getStack().isEmpty() && handler.getSlot(1).getStack().isEmpty();
+    }
+
+    private static int missingInputCloseAttempts(AutoTradeConfig config) {
+        return switch (config.rateMode) {
+            case FAST -> 40;
+            case MODERATE -> 20;
+            case CONSERVATIVE -> 8;
+        };
     }
 
     private static String outputSignature(ItemStack stack) {
